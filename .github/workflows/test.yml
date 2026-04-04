@@ -1,0 +1,21 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-slim
+    steps:
+      - name: Simple Test
+        run: |
+          echo "Should true be true"
+          if [ true = true ]; then
+            echo "Test passed!"
+          else
+            echo "Test failed!"
+            exit 1
+          fi

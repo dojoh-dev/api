@@ -69,17 +69,3 @@ Two users are going to compete each other in a codding game, couple things are g
 ## Ranking System
 
 TODO: @Leandroepk
-
-## Stack
-
-### Docker API
-
-```typescript
-docker
-	.run("docker.io/dojoh-dev/node:latest")
-	.addFlag("--rm")
-	.addFlag("-d")
-	.addArgument("--entrypoint", "/usr/bin/node")
-	.addArgument("--name", "XXXXX-XXXX")
-	.addArgument("--user", "test-runner");
-```
