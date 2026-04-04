@@ -1,8 +1,11 @@
 import Fastify from "fastify";
+import i18nPlugin from "./plugins/i18n";
 
 const f = Fastify({
 	logger: true,
 });
+
+f.register(i18nPlugin);
 
 f.get("/", async () => {
 	return { message: "Hello World!" };
@@ -18,8 +21,8 @@ f.post("/echo", async (request) => {
 
 // Register route modules
 f.register(async (f) => {
-	const { default: version_1_0 } = await import("./routes/v1.0");
-	f.register(version_1_0, { prefix: "/1.0" });
+	const { default: version_1 } = await import("./routes/v1");
+	f.register(version_1, { prefix: "/1" });
 });
 
 const start = async () => {
