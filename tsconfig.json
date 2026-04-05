@@ -35,5 +35,7 @@
 			"@plugins/*": ["./plugins/*"],
 			"@shared/*": ["./shared/*"]
 		}
-	}
+	},
+	"include": ["**/*.ts", "**/*.d.ts"],
+	"exclude": ["node_modules", "dist"]
 }
