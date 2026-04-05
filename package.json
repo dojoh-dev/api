@@ -9,6 +9,7 @@
 	},
 	"scripts": {
 		"start": "bun index.ts",
+		"dev": "bun --watch index.ts",
 		"build": "tsgo",
 		"prepare": "lefthook install",
 		"db:generate": "prisma generate",
