@@ -1,0 +1,86 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "./generated/prisma"
+  runtime             = "bun"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Image {
+  id              Int    @id @default(autoincrement())
+  original_url    String
+  width_original  Int
+  height_original Int
+  mime_type       String
+  file_size       Int
+
+  created_at   DateTime       @default(now())
+  ImageVariant ImageVariant[]
+  User         User[]
+}
+
+enum ImageVariantType {
+  XS
+  S
+  M
+  L
+  XL
+}
+
+model ImageVariant {
+  id       Int   @id @default(autoincrement())
+  image    Image @relation(fields: [image_id], references: [id])
+  image_id Int
+
+  variant   ImageVariantType
+  url       String
+  width     Int
+  height    Int
+  mime_type String
+  file_size Int
+
+  created_at DateTime @default(now())
+}
+
+model User {
+  id        Int     @id @default(autoincrement())
+  email     String  @unique
+  nickname  String  @unique
+  password  String?
+  avatar    Image?  @relation(fields: [avatar_id], references: [id])
+  avatar_id Int?
+
+  created_at DateTime  @default(now())
+  updated_at DateTime? @updatedAt
+  deleted_at DateTime?
+
+  @@index([email])
+  @@index([nickname])
+  @@index([deleted_at])
+}
+
+model OAuthAccount {
+  id      Int @id @default(autoincrement())
+  user_id Int
+
+  provider            OAuthProvider
+  provider_user_id    String
+  provider_username   String
+  provider_avatar_url String
+
+  created_at DateTime  @default(now())
+  updated_at DateTime? @updatedAt
+
+  @@unique([user_id, provider])
+  @@unique([provider, provider_user_id])
+}
+
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
