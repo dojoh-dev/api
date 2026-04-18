@@ -29,4 +29,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .idea
 
 # Finder (MacOS) folder config
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 .DS_Store
+._*
