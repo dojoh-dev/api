@@ -5,12 +5,14 @@ import jwt from "jsonwebtoken";
 import { ZodError } from "zod";
 
 import jwtConfig from "@/config/jwt";
+import prisma from "@/database/prisma/client";
 import redisClient from "@/database/redis/client";
 
 import NotFoundError from "../exceptions/notfound.exception";
 import UnauthorizedError from "../exceptions/unauthorized.exception";
 import CredentialSchema from "../schemas/credential.schema";
 import RefreshTokenSchema from "../schemas/refresh-token.schema";
+import SignInSchema from "../schemas/signin.schema";
 import type { JwtSubject } from "../types/jwt";
 
 export default {
@@ -81,6 +83,28 @@ export default {
 					error: req.t("Invalid credentials"),
 					details: e.issues,
 				});
+			} else {
+				reply.status(500).send({ error: req.t("Server error") });
+			}
+		}
+	},
+
+	async signin(req: FastifyRequest, reply: FastifyReply) {
+		try {
+			const { password, ...credentials } = SignInSchema.parse(req.body);
+
+			const userCounter = await prisma.user.count({
+				where: {
+					email: credentials.email,
+				},
+			});
+
+			if (userCounter > 0) {
+				throw new UnauthorizedError(req.t("Email already in use"));
+			}
+		} catch (e) {
+			if (e instanceof UnauthorizedError) {
+				reply.status(401).send({ error: e.message });
 			} else {
 				reply.status(500).send({ error: req.t("Server error") });
 			}
