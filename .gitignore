@@ -5,6 +5,7 @@ node_modules
 out
 dist
 *.tgz
+database/prisma/output
 
 # code coverage
 coverage
@@ -34,5 +35,3 @@ ehthumbs.db
 Desktop.ini
 .DS_Store
 ._*
-
-/generated/prisma
