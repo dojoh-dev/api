@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+
 import i18nPlugin from "./plugins/i18n";
 
 const f = Fastify({

@@ -1,5 +1,6 @@
 import { RedisClient } from "bun";
-import databaseConfig from "@config/database";
+
+import databaseConfig from "@/config/database";
 
 const { redis } = databaseConfig;
 

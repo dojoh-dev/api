@@ -1,5 +1,5 @@
-export default class MatchMakingController {
-	static search() {
+export default {
+	search() {
 		//
-	}
-}
+	},
+} as const;

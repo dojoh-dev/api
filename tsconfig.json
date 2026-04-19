@@ -28,12 +28,7 @@
 
 		"baseUrl": ".",
 		"paths": {
-			"@modules/*": ["./modules/*"],
-			"@database/*": ["./database/*"],
-			"@core/*": ["./core/*"],
-			"@config/*": ["./config/*"],
-			"@plugins/*": ["./plugins/*"],
-			"@shared/*": ["./shared/*"]
+			"@/*": ["./*"]
 		}
 	},
 	"include": ["**/*.ts", "**/*.d.ts"],

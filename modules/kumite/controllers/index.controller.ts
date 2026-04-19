@@ -1,13 +1,13 @@
-export default class KumiteController {
-	static quit() {
+export default {
+	quit() {
 		//
-	}
+	},
 
-	static test() {
+	test() {
 		//
-	}
+	},
 
-	static submit() {
+	submit() {
 		//
-	}
-}
+	},
+} as const;

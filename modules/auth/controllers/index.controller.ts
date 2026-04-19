@@ -1,9 +1,12 @@
 import crypto from "node:crypto";
-import jwtConfig from "@config/jwt";
-import redisClient from "@database/redis/client";
+
 import type { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
 import { ZodError } from "zod";
+
+import jwtConfig from "@/config/jwt";
+import redisClient from "@/database/redis/client";
+
 import NotFoundError from "../exceptions/notfound.exception";
 import UnauthorizedError from "../exceptions/unauthorized.exception";
 import CredentialSchema from "../schemas/credential.schema";

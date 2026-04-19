@@ -32,12 +32,13 @@
 					"options": {
 						"groups": [
 							":URL:",
-							"",
-							":NODE:",
-							":BUN:",
+							":BLANK_LINE:",
+							[":NODE:", ":BUN:"],
+							":BLANK_LINE:",
 							":PACKAGE:",
-							"",
+							":BLANK_LINE:",
 							":ALIAS:",
+							":BLANK_LINE:",
 							":PATH:"
 						]
 					}
