@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 
+import env from "./config/env";
 import i18nPlugin from "./plugins/i18n";
 
 const f = Fastify({
@@ -27,8 +28,10 @@ f.register(async (f) => {
 });
 
 const start = async () => {
+	const port = env("PORT", 8080);
+
 	try {
-		await f.listen({ port: 8080, host: "0.0.0.0" });
+		await f.listen({ port, host: "0.0.0.0" });
 	} catch (err) {
 		f.log.error(err);
 		process.exit(1);

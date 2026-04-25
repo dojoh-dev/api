@@ -5,8 +5,13 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
 
+env:
+  REGION: us-central1
+  REPO: api-preview
+  IMAGE: api-preview
+
 jobs:
-  test:
+  preview:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Head
@@ -14,20 +19,34 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCR_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: dojoh-dev
+          service_account_key: ${{ secrets.GCR_KEY }}
+
+      - name: Configure Docker Auth
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
       - name: Build Image
         run: |
-          docker build -t gcr.io/dojoh-dev/api-preview:${{ github.sha }} -f ci/Dockerfile .
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/dojoh-dev/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }} -f ci/Dockerfile .
 
-      - name: Push Image to GCR
+      - name: Push Image
         run: |
-          echo ${{ secrets.GCR_KEY }} | docker login -u _json_key --password-stdin https://gcr.io
-          docker push gcr.io/dojoh-dev/api-preview:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/dojoh-dev/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy api-preview \
-            --image gcr.io/dojoh-dev/api-preview:${{ github.sha }} \
-            --region us-central1 \
+          gcloud run deploy api-preview-${{ github.event.pull_request.number }} \
+            --image ${{ env.REGION }}-docker.pkg.dev/dojoh-dev/${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }} \
+            --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated
 
