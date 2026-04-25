@@ -11,6 +11,7 @@
 		"start": "bun run dist/index.js",
 		"dev": "bun --watch index.ts",
 		"build": "bun build.config.ts",
+		"test:unit": "bun test",
 		"prepare": "[ -z \"$CI\" ] && lefthook install || true",
 		"db:generate": "prisma generate",
 		"db:push": "prisma db push",

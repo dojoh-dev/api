@@ -1,0 +1,40 @@
+name: Preview Teardown
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+env:
+  REGION: us-central1
+  REPO: api-preview
+  IMAGE: api-preview
+  PROJECT_ID: dojoh-dev
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    needs: preview
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCR_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Delete Cloud Run Service
+        run: |
+          gcloud run services delete api-preview-${{ github.event.pull_request.number }} --region ${{ env.REGION }} --quiet
+
+      - name: Comment on PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "🧹 Preview no longer available"
