@@ -7,15 +7,16 @@ ENV CI=true
 ENV LEFTHOOK=0
 RUN bun install --frozen-lockfile --ignore-scripts
 
-FROM base AS build
+FROM base AS builder
 COPY --from=install /usr/src/app/node_modules node_modules
 COPY . .
-RUN bun run build
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" bunx prisma generate && \
+	bun run build
 
-FROM base AS release
+FROM base AS runner
 COPY --from=install /usr/src/app/node_modules node_modules
 COPY --from=install /usr/src/app/package.json package.json
-COPY --from=build /usr/src/app/dist dist
+COPY --from=builder /usr/src/app/dist dist
 
 ENV NODE_ENV=production
 
