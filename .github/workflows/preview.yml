@@ -1,0 +1,38 @@
+name: Preview
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build Image
+        run: |
+          docker build -t gcr.io/dojoh-dev/api-preview:${{ github.sha }} -f ci/Dockerfile .
+
+      - name: Push Image to GCR
+        run: |
+          echo ${{ secrets.GCR_KEY }} | docker login -u _json_key --password-stdin https://gcr.io
+          docker push gcr.io/dojoh-dev/api-preview:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy api-preview \
+            --image gcr.io/dojoh-dev/api-preview:${{ github.sha }} \
+            --region us-central1 \
+            --platform managed \
+            --allow-unauthenticated
+
+      - name: Comment on PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --body "🚀 Preview deployed: https://api-preview-dojoh-dev.run.app"
