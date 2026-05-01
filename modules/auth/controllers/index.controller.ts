@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import bcrypt from "bcrypt";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
 import { ZodError } from "zod";
@@ -8,59 +9,116 @@ import jwtConfig from "@/config/jwt";
 import prisma from "@/database/prisma/client";
 import redisClient from "@/database/redis/client";
 
-import NotFoundError from "../exceptions/notfound.exception";
-import UnauthorizedError from "../exceptions/unauthorized.exception";
-import CredentialSchema from "../schemas/credential.schema";
-import RefreshTokenSchema from "../schemas/refresh-token.schema";
-import SignInSchema from "../schemas/signin.schema";
+import {
+	ConflictError,
+	NotFoundError,
+	UnauthorizedError,
+} from "../exceptions/index.exception";
+import {
+	CredentialSchema,
+	createSignUpSchema,
+	RefreshTokenSchema,
+} from "../schemas/index.schema";
+import { createTokens } from "../serivces/jwt.service";
 import type { JwtSubject } from "../types/jwt";
 
 export default {
-	login(req: FastifyRequest, reply: FastifyReply) {
+	async signUp(req: FastifyRequest, reply: FastifyReply) {
 		try {
-			const { password, ...credentials } = CredentialSchema.parse(req.body);
+			const Schema = createSignUpSchema(req.t);
 
-			// @todo: validate credentials with database
+			const { password, ...credentials } = Schema.parse(req.body);
 
-			const user = {
-				id: crypto.randomUUID(),
-				email: credentials.email,
-				username: "@john_doe",
-				name: "John Doe",
-				avatarUrl: "https://example.com/avatar.jpg",
-				roles: ["player"],
-			};
-
-			const token = jwt.sign(
-				{
-					exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiration
-					iat: Math.floor(Date.now() / 1000),
-					sub: user,
+			const user = await prisma.user.findUnique({
+				where: {
+					email: credentials.email,
 				},
-				jwtConfig.secret,
-				{ algorithm: jwtConfig.algorithm },
+			});
+
+			if (user) {
+				throw new ConflictError(
+					req.t("Email already in use", { ns: "errors" }),
+				);
+			}
+
+			const newUser = await prisma.user.create({
+				data: {
+					email: credentials.email,
+					nickname: credentials.nickname,
+					password: await bcrypt.hash(password, 10),
+				},
+				select: {
+					id: true,
+					email: true,
+					nickname: true,
+				},
+			});
+
+			const tokens = createTokens({
+				id: newUser.id,
+				email: newUser.email,
+				nickname: newUser.nickname,
+			});
+
+			return reply.status(201).send({
+				message: req.t("User created successfully"),
+				data: newUser,
+				tokens,
+			});
+		} catch (e) {
+			if (e instanceof ZodError) {
+				return reply.status(400).send({
+					error: req.t("Invalid credentials", { ns: "errors" }),
+					details: e.issues,
+				});
+			}
+
+			if (e instanceof ConflictError) {
+				return reply.status(e.statusCode).send({ error: e.message });
+			}
+
+			console.debug((e as Error).message);
+			return reply
+				.status(500)
+				.send({ error: req.t("Server error", { ns: "errors" }) });
+		}
+	},
+
+	async logInViaSSO(req: FastifyRequest, reply: FastifyReply) {
+		try {
+			const credentials = CredentialSchema.parse(req.body);
+
+			const { password, ...user } = await prisma.user.findFirst({
+				where: {
+					email: credentials.email,
+				},
+				select: {
+					id: true,
+					email: true,
+					nickname: true,
+					password: true,
+					avatar: true,
+				},
+			});
+
+			if (!user) {
+				throw new NotFoundError(req.t("User not found"));
+			}
+
+			const authenticated = await bcrypt.compare(
+				credentials.password,
+				password,
 			);
 
-			const refreshToken = jwt.sign(
-				{
-					exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiration
-					iat: Math.floor(Date.now() / 1000),
-					sub: user,
-					type: "refresh",
-					tokenId: crypto.randomUUID(),
-				},
-				jwtConfig.secret,
-				{ algorithm: jwtConfig.algorithm },
-			);
+			if (!authenticated) {
+				throw new UnauthorizedError(req.t("Invalid credentials"));
+			}
 
-			const response = {
-				user,
-				tokens: {
-					token,
-					refreshToken,
-					expiresIn: 60 * 60, // 1 hour in seconds
-				},
-			};
+			const tokens = createTokens({
+				id: user.id,
+				email: user.email,
+				nickname: user.nickname,
+			});
 
 			redisClient.set(
 				`session:${user.id}`,
@@ -74,44 +132,37 @@ export default {
 				1 * 24 * 60 * 60, // session long 1 day max
 			);
 
-			reply.send({ message: req.t("Login successful"), data: response });
+			reply.send({
+				message: req.t("Login successful"),
+				data: user,
+				tokens,
+			});
 		} catch (e) {
-			console.debug((e as Error).message);
-
 			if (e instanceof ZodError) {
-				reply.status(400).send({
+				return reply.status(400).send({
 					error: req.t("Invalid credentials"),
 					details: e.issues,
 				});
-			} else {
-				reply.status(500).send({ error: req.t("Server error") });
 			}
-		}
-	},
 
-	async signin(req: FastifyRequest, reply: FastifyReply) {
-		try {
-			const { password, ...credentials } = SignInSchema.parse(req.body);
-
-			const userCounter = await prisma.user.count({
-				where: {
-					email: credentials.email,
-				},
-			});
-
-			if (userCounter > 0) {
-				throw new UnauthorizedError(req.t("Email already in use"));
-			}
-		} catch (e) {
 			if (e instanceof UnauthorizedError) {
-				reply.status(401).send({ error: e.message });
-			} else {
-				reply.status(500).send({ error: req.t("Server error") });
+				return reply.status(e.statusCode).send({
+					error: e.message,
+					details: {
+						email: req.t("Check your email", { ns: "errors" }),
+						password: req.t("Check your password", {
+							ns: "errors",
+						}),
+					},
+				});
 			}
+
+			console.debug((e as Error).message);
+			return reply.status(500).send({ error: req.t("Server error") });
 		}
 	},
 
-	logout(req: FastifyRequest, reply: FastifyReply) {
+	logOut(req: FastifyRequest, reply: FastifyReply) {
 		try {
 			const bearerToken = req.headers.authorization;
 			if (!bearerToken) {
@@ -162,65 +213,30 @@ export default {
 				throw new UnauthorizedError(req.t("Invalid token type"));
 			}
 
-			const user = {
-				id: crypto.randomUUID(),
-				email: (decoded.sub as unknown as { email: string }).email,
-				username: "@john_doe",
-				name: "John Doe",
-				avatarUrl: "https://example.com/avatar.jpg",
-				roles: ["player"],
-			};
-
-			const newToken = jwt.sign(
-				{
-					exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiration
-					iat: Math.floor(Date.now() / 1000),
-					sub: user,
-				},
-				jwtConfig.secret,
-				{ algorithm: jwtConfig.algorithm },
-			);
-
-			const newRefreshToken = jwt.sign(
-				{
-					exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour expiration
-					iat: Math.floor(Date.now() / 1000),
-					sub: user,
-					type: "refresh",
-					tokenId: crypto.randomUUID(),
-				},
-				jwtConfig.secret,
-				{ algorithm: jwtConfig.algorithm },
-			);
-
-			const response = {
-				tokens: {
-					token: newToken,
-					refreshToken: newRefreshToken,
-					expiresIn: 60 * 60, // 1 hour in seconds
-				},
-			};
+			const tokens = createTokens(decoded.sub);
 
 			reply.send({
 				message: req.t("Token refreshed successfully"),
-				data: response,
+				tokens,
+				data: decoded.sub,
 			});
 		} catch (e) {
-			console.debug((e as Error).message);
-
 			if (e instanceof ZodError) {
-				reply.status(400).send({
+				return reply.status(400).send({
 					error: req.t("Invalid request"),
 					details: e.issues,
 				});
-			} else if (e instanceof jwt.JsonWebTokenError) {
-				reply.status(401).send({
+			}
+
+			if (e instanceof jwt.JsonWebTokenError) {
+				return reply.status(401).send({
 					error: req.t("Invalid refresh token"),
 					details: e.message,
 				});
-			} else {
-				reply.status(500).send({ error: req.t("Server error") });
 			}
+
+			console.debug((e as Error).message);
+			return reply.status(500).send({ error: req.t("Server error") });
 		}
 	},
 
@@ -258,25 +274,28 @@ export default {
 
 			reply.send({ message: req.t("Session revoked") });
 		} catch (e) {
-			console.debug((e as Error).message);
-
 			if (e instanceof ZodError) {
-				reply.status(400).send({
+				return reply.status(400).send({
 					error: req.t("Invalid request"),
 					details: e.issues,
 				});
-			} else if (e instanceof NotFoundError) {
-				reply.status(404).send({ error: e.message });
-			} else if (
+			}
+
+			if (e instanceof NotFoundError) {
+				return reply.status(404).send({ error: e.message });
+			}
+
+			if (
 				e instanceof jwt.JsonWebTokenError ||
 				e instanceof UnauthorizedError
 			) {
-				reply
+				return reply
 					.status(401)
 					.send({ error: req.t("Unauthorized"), details: e.message });
-			} else {
-				reply.status(500).send({ error: req.t("Server error") });
 			}
+
+			console.debug((e as Error).message);
+			return reply.status(500).send({ error: req.t("Server error") });
 		}
 	},
 } as const;

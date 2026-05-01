@@ -27,9 +27,13 @@ export default fp(async (f) => {
 	// expose t() in Fastify request
 	// @ts-expect-error
 	f.decorateRequest("t", null);
+	// @ts-expect-error
+	f.decorateRequest("language", null);
 
 	f.addHook("preHandler", async (req) => {
 		// @ts-expect-error
 		req.t = req.raw.t;
+		// @ts-expect-error
+		req.language = req.raw.language;
 	});
 });

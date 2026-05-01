@@ -1,0 +1,16 @@
+FROM oven/bun:1
+WORKDIR /usr/src/app
+
+COPY package.json bun.lock ./
+ENV CI=true
+RUN bun install
+
+COPY . .
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" \
+	bunx --bun prisma generate
+
+ENV NODE_ENV=development
+
+USER bun
+EXPOSE 8080/tcp
+CMD [ "bun", "dev" ]

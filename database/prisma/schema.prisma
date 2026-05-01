@@ -43,11 +43,11 @@ model ImageVariant {
 }
 
 model User {
-  id        Int     @id @default(autoincrement())
-  email     String  @unique
-  nickname  String  @unique
-  password  String?
-  avatar    Image?  @relation(fields: [avatar_id], references: [id])
+  id        Int    @id @default(autoincrement())
+  email     String @unique
+  nickname  String @unique
+  password  String
+  avatar    Image? @relation(fields: [avatar_id], references: [id])
   avatar_id Int?
 
   created_at DateTime  @default(now())

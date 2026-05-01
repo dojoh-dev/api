@@ -1,0 +1,3 @@
+{
+	"nickname_rules": "The nickname must start and end with an alphanumeric character, and can contain dots, underscores, or hyphens in between. Consecutive dots, underscores, or hyphens are not allowed."
+}
