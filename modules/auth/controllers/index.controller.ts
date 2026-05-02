@@ -136,13 +136,13 @@ export default {
 				},
 			});
 
-			if (!user) {
-				throw new NotFoundError(req.t("User not found"));
+			if (!user || !user.password) {
+				throw new UnauthorizedError(req.t("Invalid credentials"));
 			}
 
 			const authenticated = await bcrypt.compare(
 				credentials.password,
-				user.password!,
+				user.password,
 			);
 
 			delete (user as { password?: string }).password;
