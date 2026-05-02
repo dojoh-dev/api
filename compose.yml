@@ -10,6 +10,7 @@ services:
       context: .
     ports:
       - "8080:8080"
+    env_file: .env
     environment:
       - NODE_ENV=development
     networks:
@@ -47,7 +48,7 @@ services:
     environment:
       - REDIS_PASSWORD=my_secret_password
     command: >
-      sh -c "redis-server --requirepass ${REDIS_PASSWORD}"
+      sh -c "redis-server --requirepass $$REDIS_PASSWORD"
     networks:
       - dojoh-net
 

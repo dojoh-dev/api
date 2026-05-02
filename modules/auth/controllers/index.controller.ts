@@ -1,6 +1,4 @@
-import crypto from "node:crypto";
-
-import { OAuthProvider, type User } from "@prisma/client";
+import { OAuthProvider } from "@prisma/client";
 import bcrypt from "bcrypt";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import jwt from "jsonwebtoken";
@@ -45,7 +43,7 @@ export default {
 
 			if (user) {
 				throw new ConflictError(
-					req.t("Email or Nickename already in use", {
+					req.t("Email or Nickname already in use", {
 						ns: "errors",
 					}),
 				);
@@ -137,6 +135,10 @@ export default {
 			});
 
 			if (!user || !user.password) {
+				throw new UnauthorizedError(req.t("Invalid credentials"));
+			}
+
+			if (!user.password) {
 				throw new UnauthorizedError(req.t("Invalid credentials"));
 			}
 
@@ -376,12 +378,15 @@ export default {
 				throw new UnauthorizedError(req.t("Unauthorized"));
 			}
 
+			// TODO: revoke thrid party sessions if the user logged in with OAuth provider (google, github, discord, etc)
+
 			const decoded = jwt.verify(token, jwtConfig.secret, {
 				algorithms: [jwtConfig.algorithm],
 			}) as jwt.JwtPayload;
 			const { id: userId } = decoded.sub as unknown as JwtSubject;
 
-			if (!redis.exists(`session:${userId}`)) {
+			const sessionExists = await redis.exists(`session:${userId}`);
+			if (!sessionExists) {
 				throw new NotFoundError(req.t("Session not found"));
 			}
 			const rawSession = await redis.get(`session:${userId}`);

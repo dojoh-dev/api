@@ -2,30 +2,16 @@ import crypto from "node:crypto";
 
 import { OAuthProvider } from "@prisma/client";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { google } from "googleapis";
 
 import env from "@/config/env";
 import prisma from "@/database/prisma/client";
 import redis from "@/database/redis/client";
 
 import type { Session } from "../models/Session";
-import { GoogleUserSchema } from "../schemas/google-user.schema";
+import { DiscordUserSchema } from "../schemas/discord-user.schema";
 import { createTokens } from "../serivces/jwt.service";
 
-/**
- * To use OAuth2 authentication, we need access to a CLIENT_ID, CLIENT_SECRET, AND REDIRECT_URI
- * from the client_secret.json file. To get these credentials for your application, visit
- * https://console.cloud.google.com/apis/credentials.
- */
-const oauth2Client = new google.auth.OAuth2(
-	{
-		clientId: env("GOOGLE_CLIENT_ID") as string,
-	},
-	env("GOOGLE_CLIENT_SECRET") as string,
-	env("GOOGLE_REDIRECT_URI") as string,
-);
-
-const GoogleOauthController = {
+const DiscordOauthController = {
 	callback: async (req: FastifyRequest, reply: FastifyReply) => {
 		const { code, state, error } = req.query as {
 			code: string;
@@ -44,18 +30,62 @@ const GoogleOauthController = {
 			return reply.status(400).send("State mismatch. Possible CSRF attack");
 		}
 
-		const { tokens } = await oauth2Client.getToken(code);
-		oauth2Client.setCredentials(tokens);
-
-		const oauth2 = google.oauth2({
-			auth: oauth2Client,
-			version: "v2",
+		const basicToken = Buffer.from(
+			`${env("DISCORD_CLIENT_ID")}:${env("DISCORD_CLIENT_SECRET")}`,
+		).toString("base64");
+		const urlencoded = new URLSearchParams({
+			grant_type: "authorization_code",
+			code,
+			redirect_uri: env("DISCORD_REDIRECT_URI") as string,
+		});
+		const tokenResponse = await fetch("https://discord.com/api/v10", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+				Authorization: `Basic ${basicToken}`,
+			},
+			body: urlencoded.toString(),
 		});
 
-		const { data } = await oauth2.userinfo.get();
-		const googleUser = GoogleUserSchema.parse(data);
+		if (!tokenResponse.ok) {
+			const content = await tokenResponse.text();
+			req.log.warn(`Failed to obtain access token from Discord: ${content}`);
+			return reply
+				.status(400)
+				.send("Failed to obtain access token from Discord");
+		}
 
-		if (!googleUser.id) {
+		const tokens = (await tokenResponse.json()) as {
+			access_token: string;
+			token_type: "Bearer";
+			expires_in: number;
+			refresh_token: string;
+			scope: "identify";
+		};
+
+		if (!tokens.access_token) {
+			req.log.warn("Failed to obtain access token from Discord");
+			return reply
+				.status(400)
+				.send("Failed to obtain access token from Discord");
+		}
+
+		const userResponse = await fetch("https://discord.com/api/v10/users/@me", {
+			headers: {
+				Authorization: `Bearer ${tokens.access_token}`,
+			},
+		});
+
+		if (!userResponse.ok) {
+			const content = await userResponse.text();
+			req.log.warn(`Failed to obtain user info from Discord: ${content}`);
+			return reply.status(400).send("Failed to obtain user info from Discord");
+		}
+
+		const userData = await userResponse.json();
+		const discordUser = DiscordUserSchema.parse(userData);
+
+		if (!discordUser.id) {
 			req.log.warn("Google user ID not found");
 			return reply.status(400).send("Google user ID not found");
 		}
@@ -64,38 +94,46 @@ const GoogleOauthController = {
 			where: {
 				provider_user_id_idx: {
 					provider: OAuthProvider.GOOGLE,
-					provider_user_id: googleUser.id,
+					provider_user_id: discordUser.id,
 				},
 			},
 			update: {
-				provider_username: googleUser.name,
-				provider_avatar_url: googleUser.picture,
+				provider_username: discordUser.username,
+				provider_avatar_url: discordUser.avatar
+					? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+					: null,
 				provider_metadata: {
-					email: googleUser.email,
+					email: discordUser.email,
+					lng: discordUser.locale,
+					discriminator: discordUser.discriminator,
 				},
 			},
 			create: {
-				provider: OAuthProvider.GOOGLE,
+				provider: OAuthProvider.DISCORD,
 				user_id: null, // Will be linked to a user account later
-				provider_user_id: googleUser.id,
-				provider_username: googleUser.name,
-				provider_avatar_url: googleUser.picture,
+				provider_user_id: discordUser.id,
+				provider_username: discordUser.username,
+				provider_avatar_url: discordUser.avatar
+					? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png`
+					: null,
 				provider_metadata: {
-					email: googleUser.email,
+					email: discordUser.email,
+					locale: discordUser.locale,
+					discriminator: discordUser.discriminator,
 				},
 			},
 		});
 
 		const user = await prisma.user.upsert({
 			where: {
-				email: googleUser.email,
+				email: discordUser.email,
 			},
 			update: {
 				// Do nothing, we don't want to overwrite existing user data
 			},
 			create: {
-				email: googleUser.email,
-				nickname: googleUser.name,
+				email: discordUser.email || "",
+				nickname: discordUser.username,
 			},
 			select: {
 				id: true,
@@ -171,30 +209,29 @@ const GoogleOauthController = {
 		});
 	},
 	generateUrl: async (req: FastifyRequest, reply: FastifyReply) => {
-		const scopes: Array<string> = ["openid", "profile", "email"];
-
-		// Generate a secure random state value.
 		const state = crypto.randomBytes(32).toString("hex");
 
-		// Store state in the session
+		const params = new URLSearchParams({
+			response_type: "code",
+			client_id: env("DISCORD_CLIENT_ID") as string,
+			redirect_uri: env("DISCORD_REDIRECT_URI") as string,
+			scope: ["identify", "email"].join("%20"),
+			prompt: "consent", // Always ask user to select account
+			integration_type: "1", // USER_INSTALL
+		});
+
 		// @ts-expect-error
 		req.state = state;
 
-		// Generate a url that asks permissions for the Drive activity and Google Calendar scope
-		const authorizationUrl = oauth2Client.generateAuthUrl({
-			// 'online' (default) or 'offline' (gets refresh_token)
-			access_type: "offline",
-			/** Pass in the scopes array defined above.
-			 * Alternatively, if only one scope is needed, you can pass a scope URL as a string */
-			scope: scopes,
-			// Enable incremental authorization. Recommended as a best practice.
-			include_granted_scopes: true,
-			// Include the state parameter to reduce the risk of CSRF attacks.
-			state: state,
-		});
+		const url = new URL(
+			`/oauth2/authorize?${params.toString()}`,
+			"https://discord.com",
+		);
+
+		const authorizationUrl = url.toString();
 
 		return reply.redirect(authorizationUrl);
 	},
-};
+} as const;
 
-export default GoogleOauthController;
+export default DiscordOauthController;

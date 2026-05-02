@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 
-import AuthController from "@/modules/auth/controllers/index.controller";
-
-import { googleOauth } from "../controllers/google-oauth.controller";
+import DiscordOauthController from "../controllers/discord-oauth.controller";
+import GithubOauthController from "../controllers/github-oauth.controller";
+import GoogleOauthController from "../controllers/google-oauth.controller";
+import AuthController from "../controllers/index.controller";
 
 export default async function authRouter(f: FastifyInstance) {
 	f.post("/signup", AuthController.signup);
@@ -15,12 +16,12 @@ export default async function authRouter(f: FastifyInstance) {
 
 	f.delete("/logout", AuthController.logout);
 
-	f.get("/url/google", googleOauth.generateUrl);
-	f.get("/callback/google", googleOauth.callback);
+	f.get("/url/google", GoogleOauthController.generateUrl);
+	f.get("/callback/google", GoogleOauthController.callback);
 
-	// f.get("/url/github", githubOauth.generateUrl);
-	// f.get("/callback/github", githubOauth.callback);
+	f.get("/url/github", GithubOauthController.generateUrl);
+	f.get("/callback/github", GithubOauthController.callback);
 
-	// f.get("/url/discord", discordOauth.generateUrl);
-	// f.get("/callback/discord", discordOauth.callback);
+	f.get("/url/discord", DiscordOauthController.generateUrl);
+	f.get("/callback/discord", DiscordOauthController.callback);
 }
