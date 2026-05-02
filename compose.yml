@@ -4,6 +4,7 @@ services:
   api:
     container_name: dojoh-api
     image: dojoh-api:latest
+    restart: unless-stopped
     build:
       dockerfile: ci/Dockerfile.dev
       context: .

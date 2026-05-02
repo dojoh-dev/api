@@ -2,7 +2,9 @@ import fp from "fastify-plugin";
 import jwt from "jsonwebtoken";
 
 import jwtConfig from "@/config/jwt";
-import redisClient from "@/database/redis/client";
+import redis from "@/database/redis/client";
+import type { Session } from "@/modules/auth/models/Session";
+import type { JwtSubject } from "@/modules/auth/types/jwt";
 
 export default fp(async (f) => {
 	f.decorateRequest("user", null);
@@ -32,24 +34,26 @@ export default fp(async (f) => {
 				algorithms: [jwtConfig.algorithm],
 			}) as jwt.JwtPayload;
 
-			const sub = decoded.sub as unknown as {
-				id: number;
-				email: string;
-				nickname: string;
-			};
+			const subject = decoded.sub as unknown as JwtSubject;
 
-			const session = await redisClient.get(`session:${sub.id}`);
+			const rawSession = await redis.get(`session:${subject.id}`);
 
-			if (!session) {
+			if (!rawSession) {
 				throw new jwt.JsonWebTokenError(req.t("Session expired or invalid"));
 			}
 
+			const session = JSON.parse(rawSession) as Session;
+
+			if (decoded.v !== session.v) {
+				throw new jwt.JsonWebTokenError(req.t("Session was invalidated"));
+			}
+
 			// @ts-expect-error
-			req.user = JSON.parse(session);
+			req.user = session;
 		} catch (e) {
 			if (e instanceof jwt.JsonWebTokenError) {
 				return reply
-					.status(401)
+					.status(403)
 					.send({ error: req.t("Unauthorized"), details: e.message });
 			}
 

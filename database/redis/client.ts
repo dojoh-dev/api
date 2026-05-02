@@ -2,10 +2,11 @@ import { RedisClient } from "bun";
 
 import databaseConfig from "@/config/database";
 
-const { redis } = databaseConfig;
+const { redis: redisConfig } = databaseConfig;
+const { host, port, username, password } = redisConfig;
 
-const client = new RedisClient(
-	`redis://${redis.username}:${redis.password}@${redis.host}:${redis.port}`,
+const redis = new RedisClient(
+	`redis://${username}:${password}@${host}:${port}`,
 );
 
-export default client;
+export default redis;
