@@ -178,7 +178,7 @@ export default {
 				},
 			};
 
-			redis.set(
+			await redis.set(
 				`session:${user.id}`,
 				JSON.stringify(session),
 				"EX",
@@ -282,16 +282,13 @@ export default {
 				throw new NotFoundError(req.t("Session not found"));
 			}
 
-			const userSession = JSON.parse(rawUserSession) as {
-				refreshId: string;
-				version: number;
-			};
+			const userSession = JSON.parse(rawUserSession) as Session;
 
 			if (userSession.refreshId !== refreshId) {
 				throw new UnauthorizedError(req.t("Invalid refresh token"));
 			}
 
-			const newVersion = userSession.version + 1;
+			const newVersion = userSession.v + 1;
 
 			const tokens = createTokens({ ...subject }, newVersion);
 
@@ -397,7 +394,11 @@ export default {
 				v: session.v + 1,
 			};
 
-			redis.set(`session:${userId}`, JSON.stringify(updatedSession), "KEEPTTL");
+			await redis.set(
+				`session:${userId}`,
+				JSON.stringify(updatedSession),
+				"KEEPTTL",
+			);
 
 			return reply.status(204).send();
 		} catch (e) {

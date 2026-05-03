@@ -18,7 +18,7 @@ await i18next
 		},
 	});
 
-export default fp(async (f) => {
+export default fp((f) => {
 	// attach i18next middleware to raw req/res
 	f.addHook("onRequest", (req, reply, done) => {
 		middleware.handle(i18next)(req.raw, reply.raw, done);

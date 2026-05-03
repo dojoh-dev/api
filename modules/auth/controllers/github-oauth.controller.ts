@@ -22,13 +22,17 @@ const GithubOauthController = {
 			state: string;
 		};
 
-		// if (error) {
-		// 	req.log.warn("OAuth error: " + error);
-		// 	return reply.status(400).send("OAuth error: " + error);
-		// }
+		const storedState = req.cookies["oauth_state"];
+		const verifier = req.cookies["oauth_verifier"];
 
-		// @ts-expect-error
-		if (state !== req.state) {
+		if (!storedState || !verifier) {
+			req.log.warn("Missing state or code verifier in cookies");
+			return reply
+				.status(400)
+				.send("Missing state or code verifier in cookies");
+		}
+
+		if (state !== storedState) {
 			req.log.warn("State mismatch. Possible CSRF attack");
 			return reply.status(400).send("State mismatch. Possible CSRF attack");
 		}
@@ -45,6 +49,7 @@ const GithubOauthController = {
 					client_id: env("GITHUB_CLIENT_ID"),
 					client_secret: env("GITHUB_CLIENT_SECRET"),
 					code,
+					code_verifier: verifier,
 					redirect_uri: env("GITHUB_REDIRECT_URI"),
 				}),
 			},
@@ -89,14 +94,14 @@ const GithubOauthController = {
 		const githubUser = GithubUserSchema.parse(userData);
 
 		if (!githubUser.id) {
-			req.log.warn("Google user ID not found");
-			return reply.status(400).send("Google user ID not found");
+			req.log.warn("Github user ID not found");
+			return reply.status(400).send("Github user ID not found");
 		}
 
 		const oauthAccount = await prisma.oAuthAccount.upsert({
 			where: {
 				provider_user_id_idx: {
-					provider: OAuthProvider.GOOGLE,
+					provider: OAuthProvider.GITHUB,
 					provider_user_id: githubUser.id,
 				},
 			},
@@ -109,7 +114,7 @@ const GithubOauthController = {
 				},
 			},
 			create: {
-				provider: OAuthProvider.GOOGLE,
+				provider: OAuthProvider.GITHUB,
 				user_id: null, // Will be linked to a user account later
 				provider_user_id: githubUser.id,
 				provider_username: githubUser.login,
@@ -204,7 +209,7 @@ const GithubOauthController = {
 			data: user,
 		});
 	},
-	generateUrl: async (req: FastifyRequest, reply: FastifyReply) => {
+	generateUrl: async (_: FastifyRequest, reply: FastifyReply) => {
 		const verifier = generateCodeVerifier();
 		const challenge = await generateCodeChallenge(verifier);
 		const state = crypto.randomBytes(32).toString("hex");
@@ -218,8 +223,19 @@ const GithubOauthController = {
 			code_challenge: challenge,
 		});
 
-		// @ts-expect-error
-		req.state = state;
+		reply.setCookie("oauth_state", state, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "lax",
+			maxAge: 60 * 5, // 5m
+		});
+
+		reply.setCookie("oauth_verifier", verifier, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "lax",
+			maxAge: 60 * 5, // 5m
+		});
 
 		const url = new URL(
 			`/login/oauth/authorize?${params.toString()}`,

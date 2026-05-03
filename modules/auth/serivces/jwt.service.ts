@@ -4,13 +4,10 @@ import jwt from "jsonwebtoken";
 
 import jwtConfig from "@/config/jwt";
 
-const REFRESH_TOKEN_GRACE_PERIOD_SECONDS = 10;
-
 export const createTokens = (sub: unknown, version: number = 1) => {
 	const now = Math.floor(Date.now() / 1000);
 	const accessExp = now + jwtConfig.access.expiresIn;
-	const refreshExp =
-		now + jwtConfig.refresh.expiresIn + REFRESH_TOKEN_GRACE_PERIOD_SECONDS;
+	const refreshExp = now + jwtConfig.refresh.expiresIn;
 	const jti = crypto.randomUUID();
 
 	const accessToken = jwt.sign(

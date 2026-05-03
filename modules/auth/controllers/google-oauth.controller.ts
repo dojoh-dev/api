@@ -38,8 +38,9 @@ const GoogleOauthController = {
 			return reply.status(400).send(`OAuth error: ${error}`);
 		}
 
-		// @ts-expect-error
-		if (state !== req.state) {
+		const storedState = req.cookies["oauth_state"];
+
+		if (state !== storedState) {
 			req.log.warn("State mismatch. Possible CSRF attack");
 			return reply.status(400).send("State mismatch. Possible CSRF attack");
 		}
@@ -60,6 +61,7 @@ const GoogleOauthController = {
 			return reply.status(400).send("Google user ID not found");
 		}
 
+		const googleUsername = googleUser.email.split("@")[0] as string;
 		const oauthAccount = await prisma.oAuthAccount.upsert({
 			where: {
 				provider_user_id_idx: {
@@ -68,7 +70,7 @@ const GoogleOauthController = {
 				},
 			},
 			update: {
-				provider_username: googleUser.name,
+				provider_username: googleUsername,
 				provider_avatar_url: googleUser.picture,
 				provider_metadata: {
 					email: googleUser.email,
@@ -81,6 +83,7 @@ const GoogleOauthController = {
 				provider_username: googleUser.name,
 				provider_avatar_url: googleUser.picture,
 				provider_metadata: {
+					name: googleUser.name,
 					email: googleUser.email,
 				},
 			},
@@ -95,7 +98,7 @@ const GoogleOauthController = {
 			},
 			create: {
 				email: googleUser.email,
-				nickname: googleUser.name,
+				nickname: googleUsername,
 			},
 			select: {
 				id: true,
@@ -157,7 +160,7 @@ const GoogleOauthController = {
 			},
 		};
 
-		redis.set(
+		await redis.set(
 			`session:${user.id}`,
 			JSON.stringify(session),
 			"EX",
@@ -177,8 +180,12 @@ const GoogleOauthController = {
 		const state = crypto.randomBytes(32).toString("hex");
 
 		// Store state in the session
-		// @ts-expect-error
-		req.state = state;
+		reply.setCookie("oauth_state", state, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "lax",
+			maxAge: 60 * 5, // 5m
+		});
 
 		// Generate a url that asks permissions for the Drive activity and Google Calendar scope
 		const authorizationUrl = oauth2Client.generateAuthUrl({

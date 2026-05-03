@@ -6,30 +6,23 @@ import redis from "@/database/redis/client";
 import type { Session } from "@/modules/auth/models/Session";
 import type { JwtSubject } from "@/modules/auth/types/jwt";
 
-export default fp(async (f) => {
+export default fp((f) => {
 	f.decorateRequest("user", null);
 
 	f.addHook("preHandler", async (req, reply) => {
-		const { pathname } = new URL(req.url, `http://${req.headers.host}`);
-
-		// Skip authentication for public routes
-		if (publicRoutes.some((route) => pathname.startsWith(route))) {
-			return;
-		}
-
-		const authHeader = req.headers.authorization;
-
-		if (!authHeader) {
-			throw new jwt.JsonWebTokenError(req.t("Header missing"));
-		}
-
-		const token = authHeader.split(" ")[1];
-
-		if (!token) {
-			throw new jwt.JsonWebTokenError(req.t("No token provided"));
-		}
-
 		try {
+			const authHeader = req.headers.authorization;
+
+			if (!authHeader) {
+				throw new jwt.JsonWebTokenError(req.t("Header missing"));
+			}
+
+			const token = authHeader.split(" ")[1];
+
+			if (!token) {
+				throw new jwt.JsonWebTokenError(req.t("No token provided"));
+			}
+
 			const decoded = jwt.verify(token, jwtConfig.secret, {
 				algorithms: [jwtConfig.algorithm],
 			}) as jwt.JwtPayload;
@@ -62,5 +55,3 @@ export default fp(async (f) => {
 		}
 	});
 });
-
-const publicRoutes = ["/1/auth/signup", "/1/auth/login"];

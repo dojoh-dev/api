@@ -13,19 +13,14 @@ import { createTokens } from "../serivces/jwt.service";
 
 const DiscordOauthController = {
 	callback: async (req: FastifyRequest, reply: FastifyReply) => {
-		const { code, state, error } = req.query as {
+		const { code, state } = req.query as {
 			code: string;
 			state: string;
-			error?: string;
 		};
 
-		if (error) {
-			req.log.warn(`OAuth error: ${error}`);
-			return reply.status(400).send(`OAuth error: ${error}`);
-		}
+		const storedState = req.cookies["oauth_state"];
 
-		// @ts-expect-error
-		if (state !== req.state) {
+		if (state !== storedState) {
 			req.log.warn("State mismatch. Possible CSRF attack");
 			return reply.status(400).send("State mismatch. Possible CSRF attack");
 		}
@@ -38,14 +33,17 @@ const DiscordOauthController = {
 			code,
 			redirect_uri: env("DISCORD_REDIRECT_URI") as string,
 		});
-		const tokenResponse = await fetch("https://discord.com/api/v10", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-				Authorization: `Basic ${basicToken}`,
+		const tokenResponse = await fetch(
+			"https://discord.com/api/v10/oauth2/token",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/x-www-form-urlencoded",
+					Authorization: `Basic ${basicToken}`,
+				},
+				body: urlencoded.toString(),
 			},
-			body: urlencoded.toString(),
-		});
+		);
 
 		if (!tokenResponse.ok) {
 			const content = await tokenResponse.text();
@@ -86,14 +84,14 @@ const DiscordOauthController = {
 		const discordUser = DiscordUserSchema.parse(userData);
 
 		if (!discordUser.id) {
-			req.log.warn("Google user ID not found");
-			return reply.status(400).send("Google user ID not found");
+			req.log.warn("Discord user ID not found");
+			return reply.status(400).send("Discord user ID not found");
 		}
 
 		const oauthAccount = await prisma.oAuthAccount.upsert({
 			where: {
 				provider_user_id_idx: {
-					provider: OAuthProvider.GOOGLE,
+					provider: OAuthProvider.DISCORD,
 					provider_user_id: discordUser.id,
 				},
 			},
@@ -189,13 +187,13 @@ const DiscordOauthController = {
 			v: 1,
 			refreshId,
 			provider: {
-				type: OAuthProvider.GOOGLE,
+				type: OAuthProvider.DISCORD,
 				accessToken: tokens.access_token || undefined,
 				refreshToken: tokens.refresh_token || undefined,
 			},
 		};
 
-		redis.set(
+		await redis.set(
 			`session:${user.id}`,
 			JSON.stringify(session),
 			"EX",
@@ -203,25 +201,30 @@ const DiscordOauthController = {
 		);
 
 		return reply.send({
-			message: req.t("Logged in with Google successfully!"),
+			message: req.t("Logged in with Discord successfully!"),
 			tokens: jwtTokens,
 			data: user,
 		});
 	},
-	generateUrl: async (req: FastifyRequest, reply: FastifyReply) => {
+	generateUrl: async (_: FastifyRequest, reply: FastifyReply) => {
 		const state = crypto.randomBytes(32).toString("hex");
 
 		const params = new URLSearchParams({
 			response_type: "code",
 			client_id: env("DISCORD_CLIENT_ID") as string,
 			redirect_uri: env("DISCORD_REDIRECT_URI") as string,
-			scope: ["identify", "email"].join("%20"),
+			scope: ["identify", "email"].join(" "),
 			prompt: "consent", // Always ask user to select account
 			integration_type: "1", // USER_INSTALL
+			state,
 		});
 
-		// @ts-expect-error
-		req.state = state;
+		reply.setCookie("oauth_state", state, {
+			httpOnly: true,
+			secure: true,
+			sameSite: "lax",
+			maxAge: 60 * 5, // 5m
+		});
 
 		const url = new URL(
 			`/oauth2/authorize?${params.toString()}`,
