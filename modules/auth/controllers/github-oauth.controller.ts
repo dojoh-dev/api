@@ -122,14 +122,14 @@ const GithubOauthController = {
 		});
 
 		const user = await prisma.user.upsert({
-			where: {
-				email: githubUser.email,
-			},
+			where: githubUser.email
+				? { email: githubUser.email }
+				: { nickname: githubUser.login },
 			update: {
 				// Do nothing, we don't want to overwrite existing user data
 			},
 			create: {
-				email: githubUser.email || "",
+				email: githubUser.email ?? "",
 				nickname: githubUser.login,
 			},
 			select: {
