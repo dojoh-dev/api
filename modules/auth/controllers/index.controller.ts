@@ -134,7 +134,7 @@ export default {
 				},
 			});
 
-			if (!user || !user.password) {
+			if (!user?.password) {
 				throw new UnauthorizedError(req.t("Invalid credentials"));
 			}
 
