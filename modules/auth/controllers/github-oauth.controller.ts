@@ -22,8 +22,8 @@ const GithubOauthController = {
 			state: string;
 		};
 
-		const storedState = req.cookies["oauth_state"];
-		const verifier = req.cookies["oauth_verifier"];
+		const storedState = req.cookies.oauth_state;
+		const verifier = req.cookies.oauth_verifier;
 
 		if (!storedState || !verifier) {
 			req.log.warn("Missing state or code verifier in cookies");

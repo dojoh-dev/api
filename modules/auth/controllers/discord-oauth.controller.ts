@@ -18,7 +18,7 @@ const DiscordOauthController = {
 			state: string;
 		};
 
-		const storedState = req.cookies["oauth_state"];
+		const storedState = req.cookies.oauth_state;
 
 		if (state !== storedState) {
 			req.log.warn("State mismatch. Possible CSRF attack");

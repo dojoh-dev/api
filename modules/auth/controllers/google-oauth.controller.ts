@@ -38,7 +38,7 @@ const GoogleOauthController = {
 			return reply.status(400).send(`OAuth error: ${error}`);
 		}
 
-		const storedState = req.cookies["oauth_state"];
+		const storedState = req.cookies.oauth_state;
 
 		if (state !== storedState) {
 			req.log.warn("State mismatch. Possible CSRF attack");
@@ -173,7 +173,7 @@ const GoogleOauthController = {
 			data: user,
 		});
 	},
-	generateUrl: async (req: FastifyRequest, reply: FastifyReply) => {
+	generateUrl: async (_req: FastifyRequest, reply: FastifyReply) => {
 		const scopes: Array<string> = ["openid", "profile", "email"];
 
 		// Generate a secure random state value.
