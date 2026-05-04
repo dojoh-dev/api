@@ -180,7 +180,7 @@ const GoogleOauthController = {
 		const state = crypto.randomBytes(32).toString("hex");
 
 		// Store state in the session
-		reply.setCookie("oauth_state", state, {
+		reply.setCookie("dojoh.oauth_state", state, {
 			httpOnly: true,
 			secure: true,
 			sameSite: "lax",
@@ -201,6 +201,11 @@ const GoogleOauthController = {
 		});
 
 		return reply.redirect(authorizationUrl);
+	},
+	oneTap: async (req: FastifyRequest, reply: FastifyReply) => {
+		const { credential } = req.body as {
+			credential: string;
+		};
 	},
 };
 

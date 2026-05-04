@@ -391,6 +391,7 @@ export default {
 
 			const updatedSession: Session = {
 				...session,
+				refreshId: crypto.randomUUID(),
 				v: session.v + 1,
 			};
 

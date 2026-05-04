@@ -88,6 +88,9 @@ const DiscordOauthController = {
 			return reply.status(400).send("Discord user ID not found");
 		}
 
+		const discordEmail =
+			discordUser.email || `${discordUser.id}@discord.oauth.local`;
+
 		const oauthAccount = await prisma.oAuthAccount.upsert({
 			where: {
 				provider_user_id_idx: {
@@ -219,7 +222,7 @@ const DiscordOauthController = {
 			state,
 		});
 
-		reply.setCookie("oauth_state", state, {
+		reply.setCookie("dojoh.oauth_state", state, {
 			httpOnly: true,
 			secure: true,
 			sameSite: "lax",

@@ -223,14 +223,14 @@ const GithubOauthController = {
 			code_challenge: challenge,
 		});
 
-		reply.setCookie("oauth_state", state, {
+		reply.setCookie("dojoh.oauth_state", state, {
 			httpOnly: true,
 			secure: true,
 			sameSite: "lax",
 			maxAge: 60 * 5, // 5m
 		});
 
-		reply.setCookie("oauth_verifier", verifier, {
+		reply.setCookie("dojoh.oauth_verifier", verifier, {
 			httpOnly: true,
 			secure: true,
 			sameSite: "lax",
