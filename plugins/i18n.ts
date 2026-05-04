@@ -18,7 +18,7 @@ await i18next
 		},
 	});
 
-export default fp(async (f) => {
+export default fp((f) => {
 	// attach i18next middleware to raw req/res
 	f.addHook("onRequest", (req, reply, done) => {
 		middleware.handle(i18next)(req.raw, reply.raw, done);
@@ -27,9 +27,13 @@ export default fp(async (f) => {
 	// expose t() in Fastify request
 	// @ts-expect-error
 	f.decorateRequest("t", null);
+	// @ts-expect-error
+	f.decorateRequest("language", null);
 
 	f.addHook("preHandler", async (req) => {
 		// @ts-expect-error
 		req.t = req.raw.t;
+		// @ts-expect-error
+		req.language = req.raw.language;
 	});
 });

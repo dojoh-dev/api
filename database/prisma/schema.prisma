@@ -50,9 +50,10 @@ model User {
   avatar    Image?  @relation(fields: [avatar_id], references: [id])
   avatar_id Int?
 
-  created_at DateTime  @default(now())
-  updated_at DateTime? @updatedAt
-  deleted_at DateTime?
+  created_at    DateTime       @default(now())
+  updated_at    DateTime?      @updatedAt
+  deleted_at    DateTime?
+  oauthAccounts OAuthAccount[]
 
   @@index([email])
   @@index([nickname])
@@ -60,22 +61,26 @@ model User {
 }
 
 model OAuthAccount {
-  id      Int @id @default(autoincrement())
-  user_id Int
+  id      Int   @id @default(autoincrement())
+  user_id Int? // Allow null for accounts that are not linked to a user yet
+  user    User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   provider            OAuthProvider
   provider_user_id    String
   provider_username   String
-  provider_avatar_url String
+  provider_avatar_url String?
+  provider_metadata   Json?
 
   created_at DateTime  @default(now())
   updated_at DateTime? @updatedAt
 
-  @@unique([user_id, provider])
-  @@unique([provider, provider_user_id])
+  @@unique([user_id, provider], name: "user_provider_idx")
+  @@unique([provider, provider_user_id], name: "provider_user_id_idx")
 }
 
 enum OAuthProvider {
   GOOGLE
   GITHUB
+  DISCORD
+  NATIVE
 }

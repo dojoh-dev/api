@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const RefreshTokenSchema = z.object({
+export const RefreshTokenSchema = z.object({
 	refreshToken: z.string(),
 });
-
-export default RefreshTokenSchema;

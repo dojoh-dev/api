@@ -1,0 +1,60 @@
+name: dojoh-api
+
+services:
+  api:
+    container_name: dojoh-api
+    image: dojoh-api:latest
+    restart: unless-stopped
+    build:
+      dockerfile: ci/Dockerfile.dev
+      context: .
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+    networks:
+      - dojoh-net
+    volumes:
+      - ./:/usr/src/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - pg
+      - redis
+
+  pg:
+    container_name: dojoh-pg
+    image: postgres:18
+    environment:
+      - POSTGRES_USER=dojoh
+      - POSTGRES_PASSWORD=my_secret_password
+      - POSTGRES_DB=dojoh_dev
+    ports:
+      - "5432:5432"
+    networks:
+      - dojoh-net
+    volumes:
+      - pg_data:/var/lib/postgresql/18/docker
+
+  redis:
+    container_name: dojoh-redis
+    image: redis:7
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=my_secret_password
+    command: >
+      sh -c "redis-server --requirepass $$REDIS_PASSWORD"
+    networks:
+      - dojoh-net
+
+networks:
+  dojoh-net:
+    driver: bridge
+
+volumes:
+  pg_data: {}

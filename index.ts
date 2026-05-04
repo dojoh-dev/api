@@ -1,3 +1,4 @@
+import fastifyCookie from "@fastify/cookie";
 import Fastify from "fastify";
 
 import env from "./config/env";
@@ -7,18 +8,14 @@ const f = Fastify({
 	logger: true,
 });
 
-f.register(i18nPlugin);
-
-f.get("/", async () => {
-	return { message: "Hello World!" };
+f.register(fastifyCookie, {
+	secret: env("COOKIE_SECRET", undefined),
 });
+
+f.register(i18nPlugin);
 
 f.get("/health", async () => {
 	return { status: "ok", timestamp: new Date().toISOString() };
-});
-
-f.post("/echo", async (request) => {
-	return { received: request.body };
 });
 
 // Register route modules

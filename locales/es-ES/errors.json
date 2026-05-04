@@ -1,4 +1,5 @@
 {
 	"Invalid credentials": "Credenciales inválidas",
-	"Server error": "Error del servidor"
+	"Server error": "Error del servidor",
+	"Email already in use": "El correo electrónico ya está en uso"
 }
